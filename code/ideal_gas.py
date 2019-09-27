@@ -87,7 +87,7 @@ def F(T, V, N):
 
 def F_S(T, V, N):
     """entropy"""
-    return 0.5*N*k_B*(-2.0*C1 + log((8/27)*N**2/(T**3*V**2*k_B**3)))
+    return -0.5*N*k_B*(-2.0*C1 + log((8/27)*N**2/(T**3*V**2*k_B**3)))
 
 def F_p(T, V, N):
     """pressure"""

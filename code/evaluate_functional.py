@@ -1,46 +1,60 @@
 """evaluate a functional defined on the state space"""
 
 import sympy
-import numpy as np
+import numpy
+import math
+
+from gauss_legendre import eval_expr
 
 
-def evaluate_functional(x, functional, solution, params=[]):
+def _generate_code(x, functional):
+    """generate code for evaluating functional(x)"""
+
+    printer = sympy.printing.lambdarepr.PythonCodePrinter()
+
+    code = "def evaluate(values, solution):\n"
+    code += "\tfor k in range(len(values)):\n"
+    code += "\t\t" + ", ".join(str(state) for state in x) + " = solution[k]\n"
+    code += f"\t\tvalues[k] = {printer.doprint(functional.evalf())}\n"
+    return code
+
+
+def evaluate_functional(x, functional, solution, functionals={}, params={}):
     """Evaluates a functional on the state space
     for a numerical solution
 
     Parameters
     ----------
     x : List[sympy.Symbol]
-        State-space coordinates.
+        Symbolic state vector.
     functional : sympy.Expr
         A functional on the state space.
     solution : numpy.ndarray
         Array containing the numerical solution.
         The first axis is time.
         The second axis is state.
-    params : List[Tuple[sympy.Symbol, float]]
-        Extra parameters on which the functional may depend.
+    functionals: Dict[sympy.Symbol, sympy.Expr]
+        Definitions of functionals.
+    params : Dict[sympy.Symbol, Union[sympy.Expr, float]]
+        Parameters on which the functional may depend.
     """
 
-    free_symbols = functional.free_symbols - set(x) - set(s for s, _ in params)
-    if free_symbols:
-        raise Exception(f"functional contains free symbols: {free_symbols}")
+    functional = eval_expr(functional, functionals, params)
 
-    printer = sympy.printing.lambdarepr.NumPyPrinter()
+    undefined = functional.free_symbols - set(x)
+    if undefined:
+        raise ValueError(
+            f"Functional contains symbols with undefined values: {undefined}"
+        )
 
-    code = "def evaluate(x):\n"
-    if params:
-        code += "".join(f"\t{symbol} = {value}\n" for symbol, value in params)
-    code += "".join(f"\t{symbol} = x[{i}]\n" for i, symbol in enumerate(x))
-    code += f"\treturn {printer.doprint(functional)}"
-
+    code = _generate_code(x, functional)
+    # print(code)
     ldict = {}
     exec(code, globals(), ldict)
     evaluate = ldict["evaluate"]
+    del code, ldict
 
     K = len(solution)
-    values = np.empty(K, dtype=float)
-    for k in range(K):
-        values[k] = evaluate(solution[k])
-
+    values = numpy.empty(K, dtype=float)
+    evaluate(values, solution)
     return values

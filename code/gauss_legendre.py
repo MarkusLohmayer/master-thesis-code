@@ -1,9 +1,10 @@
 """Gauss-Legendre collocation methods for port-Hamiltonian systems"""
 
 import sympy
-import numpy as np
+import numpy
+import math
 
-from newton import newton_raphson
+from newton import newton_raphson, DidNotConvergeError
 
 
 def butcher(s):
@@ -33,7 +34,7 @@ def butcher(s):
     # roots of P
     C = sympy.solve(P)
     C.sort()
-    c = np.array([float(c_i) for c_i in C])
+    c = numpy.array([float(c_i) for c_i in C])
 
     # Lagrange basis polynomials at nodes C
     L = []
@@ -46,134 +47,192 @@ def butcher(s):
 
     # integrals of Lagrange polynomials
     A = [[sympy.integrate(l, (tau, 0, c_i)) for l in L] for c_i in C]
-    a = np.array([[float(a_ij) for a_ij in row] for row in A])
+    a = numpy.array([[float(a_ij) for a_ij in row] for row in A])
 
     B = [sympy.integrate(l, (tau, 0, 1)) for l in L]
-    b = np.array([float(b_j) for b_j in B])
+    b = numpy.array([float(b_j) for b_j in B])
 
     return a, b, c
 
 
-def generate_assembly_code(x, F, N, s, a, params):
-    """Generates code for the two methods
-    compute_residuals and compute_jacobian
+def eval_expr(expr, functionals={}, params={}, state={}):
+    """Evaluate a symbolic expression based provided information.
+
+    Parameters
+    ----------
+    expr : sympy.Expr
+        Expression to evaluate.
+    functionals: Dict[sympy.Symbol, sympy.Expr]
+        Dictionary of known functionals.
+    params: Dict[sympy.Symbol, Union[sympy.Expr, float]]
+        Dictionary of known parameters.
+    state : Dict[symbol.Symbol, float] or Tuple[List[sympy.Symbol], array_like]
+        Optionally provide (part of) the state as a dictionary
+        or as a tuple of the symbolic state vector and an array of corresponding values.
+
+    Returns the evaluated expression.
     """
 
-    # symbols for Butcher coefficients a_{ij} multiplied by time step h
-    asym = [[sympy.Symbol(f'a{i}{j}') for j in range(s)] for i in range(s)]
+    if state and isinstance(state, tuple):
+        state_symbols, state_values = state
+        state = {symbol: value for symbol, value in zip(state_symbols, state_values)}
 
-    # symbols for old state
-    osym = [sympy.Symbol(f'o[{n}]') for n in range(N)]
+    def replace_unknowns(expression):
+        if isinstance(expression, sympy.Expr):
+            for symbol in expression.free_symbols:
+                replacement = None
 
-    # symbols for unknowns (flow vector) 
-    fsym = [[sympy.Symbol(f'f[{i},{n}]') for n in range(N)] for i in range(s)]
+                if functionals and symbol in functionals.keys():
+                    replacement = functionals[symbol]
+                elif params and symbol in params.keys():
+                    replacement = params[symbol]
+                elif state and symbol in state.keys():
+                    replacement = state[symbol]
 
-    # polynomial approximation of the numerical solution at the collocation points
-    xc = [[(x[n], osym[n] - sum(asym[i][j] * fsym[j][n] for j in range(s))) for n in range(N)] for i in range(s)]
+                if replacement is not None:
+                    replacement = replace_unknowns(replacement)
+                    expression = expression.subs(symbol, replacement)
+        return expression
 
-    # expressions for the residuals vector
-    residuals = [fsym[i][n] + F[n].subs(xc[i]) for i in range(s) for n in range(N)]
-
-    # expressions for the Jacobian matrix
-    jacobian = [[residuals[i].diff(d) for r in fsym for d in r] for i in range(s*N)]
-
-    printer = sympy.printing.lambdarepr.NumPyPrinter()
-
-    code = 'def compute_residuals(residuals, f, o):\n'
-    code += f'\tf = f.view()\n\tf.shape = ({s}, {N})\n'
-    code += ''.join(f'\ta{i}{j} = {a[i,j]}\n' for i in range(s) for j in range(s))
-    code += ''.join(f'\t{symbol} = {value}\n' for symbol, value in params)
-    for i in range(s*N):
-        code += f'\tresiduals[{i}] = {printer.doprint(residuals[i])}\n' 
-
-    code += '\n\ndef compute_jacobian(jacobian, f, o):\n'
-    code += f'\tf = f.view()\n\tf.shape = ({s}, {N})\n'
-    code += ''.join(f'\ta{i}{j} = {a[i,j]}\n' for i in range(s) for j in range(s))
-    code += ''.join(f'\t{symbol} = {value}\n' for symbol, value in params)
-    for i in range(s*N):
-        for j in range(s*N):
-             code += f'\tjacobian[{i},{j}] = {printer.doprint(jacobian[i][j])}\n'
-
-    return code
+    return replace_unknowns(expr)
 
 
-def gauss_legendre(x, J, H, x_0, t_f, h, s=1, params=[]):
+def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}):
     """Integrate a port-Hamiltonian system in time
-    based on a Gauss-Legendre collocation method. 
+    based on a Gauss-Legendre collocation method.
 
     Parameters
     ----------
     x : sympy.Matrix
         vector of symbols for state-space coordinates
-    J : sympy.Matrix
-        structure matrix
-    H : sympy.Expr
-        Hamiltonian.
-    G : sympy.Matrix
-    u : numpy.ndarray
+    F : List[sympy.Expr]
+        The right-hand side of the ODE.
     x_0 : numpy.ndarray
         Initial conditions.
     t_f : float
         Length of time interval.
-    h : float
+    dt : float
         Desired time step.
     s : int
         Number of stages of the collocation method.
         The resulting method is of order 2s.
-    params : List[Tuple[sympy.Symbol, float]]
-        Extra parameters on which the system may depend.
+    functionals : Dict[sympy.Symbol, sympy.Expr]
+        Functionals on which F may depend.
+    params : Dict[sympy.Symbol, Union[sympy.Expr, float]]
+        Parameters on which the system may depend.
     """
-    # efforts
-    e = sympy.Matrix([H.diff(d) for d in x])
-
-    # dynamics
-    F = J @ e
 
     # number of steps
-    K = int(t_f // h)
+    K = int(t_f // dt)
 
     # accurate time step
-    h = t_f / K
+    dt = t_f / K
 
     # dimension of state space
     N = len(x)
 
+    # Butcher tableau (multiplied with time step)
+    a, b, c = butcher(s)
+    a *= dt
+    b *= dt
+    c *= dt
+
+    # generate code for evaluating residuals vector and Jacobian matrix
+    code = _generate_code(x, F, N, a, s, functionals, params)
+    # print(code)
+    # return None, None
+    ldict = {}
+    exec(code, None, ldict)
+    compute_residuals = ldict["compute_residuals"]
+    compute_jacobian = ldict["compute_jacobian"]
+    del code, ldict
+
     # array for storing time at every step
-    time = np.empty(K+1, dtype=float)
+    time = numpy.empty(K + 1, dtype=float)
     time[0] = t_0 = 0.0
 
     # array for storing the state at every step
-    solution = np.empty((K+1, N), dtype=float)
+    solution = numpy.empty((K + 1, N), dtype=float)
     solution[0] = x_0
 
     # flows / unknowns (reused at every step)
-    f = np.ones(s*N, dtype=float)
+    f = numpy.ones(s * N, dtype=float)
     fmat = f.view()
     fmat.shape = (s, N)
 
     # residuals vector (reused at every step)
-    residuals = np.empty(s*N, dtype=float)
+    residuals = numpy.empty(s * N, dtype=float)
 
     # jacobian matrix (reused at every step)
-    jacobian = np.empty((s*N, s*N), dtype=float)
+    jacobian = numpy.empty((s * N, s * N), dtype=float)
 
-    # Butcher tableau (multiplied with time step)
-    a, b, c = butcher(s)
-    a *= h
-    b *= h
-    c *= h
-
-    # generate methods for assembling the residuals and Jacobian
-    ldict = {}
-    exec(generate_assembly_code(x, F, N, s, a, params), globals(), ldict)
-    compute_residuals = ldict['compute_residuals']
-    compute_jacobian = ldict['compute_jacobian']
-
-    for k in range(1, K+1):
-        compute_residuals_x = lambda residuals, unknowns : compute_residuals(residuals, unknowns, x_0)
-        compute_jacobian_x = lambda jacobian, unknowns : compute_jacobian(jacobian, unknowns, x_0)
-        newton_raphson(f, residuals, compute_residuals_x, jacobian, compute_jacobian_x)
-        time[k] = t_0 = t_0 + h
+    for k in range(1, K + 1):
+        try:
+            newton_raphson(
+                f,
+                residuals,
+                lambda residuals, unknowns: compute_residuals(residuals, unknowns, x_0),
+                jacobian,
+                lambda jacobian, unknowns: compute_jacobian(jacobian, unknowns, x_0),
+                tol=1e-9,
+                iterations=500,
+            )
+        except DidNotConvergeError:
+            print(f"Did not converge at step {k}.")
+            break
+        time[k] = t_0 = t_0 + dt
         solution[k] = x_0 = x_0 - b @ fmat
 
     return time, solution
+
+
+def _generate_code(x, F, N, a, s, functionals, params):
+    """Generate code for the two methods compute_residuals and compute_jacobian"""
+
+    # dynamics
+    F = [eval_expr(f, functionals) for f in F]
+
+    # symbols for Butcher coefficients a_{ij} multiplied by time step h
+    asym = [[sympy.Symbol(f"a{i}{j}") for j in range(s)] for i in range(s)]
+
+    # symbols for old state
+    osym = [sympy.Symbol(f"o[{n}]") for n in range(N)]
+
+    # symbols for unknowns (flow vector)
+    fsym = [[sympy.Symbol(f"f[{i},{n}]") for n in range(N)] for i in range(s)]
+
+    # polynomial approximation of the numerical solution at the collocation points
+    xc = [
+        [
+            (x[n], osym[n] - sum(asym[i][j] * fsym[j][n] for j in range(s)))
+            for n in range(N)
+        ]
+        for i in range(s)
+    ]
+
+    # expressions for the residuals vector
+    residuals = [fsym[i][n] + F[n].subs(xc[i]) for i in range(s) for n in range(N)]
+
+    # expressions for the Jacobian matrix
+    jacobian = [[residuals[i].diff(d) for r in fsym for d in r] for i in range(s * N)]
+
+    printer = sympy.printing.lambdarepr.PythonCodePrinter()
+
+    code = "def compute_residuals(residuals, f, o):\n"
+    code += f"\tf = f.view()\n\tf.shape = ({s}, {N})\n"
+    code += "".join(f"\ta{i}{j} = {a[i,j]}\n" for i in range(s) for j in range(s))
+    # code += "".join(f"\t{symbol} = {printer.doprint(value)}\n" for symbol, value in params.items())
+    for i in range(s * N):
+        code += f"\tresiduals[{i}] = {printer.doprint(eval_expr(residuals[i], params=params).evalf())}\n"
+        # code += f"\tresiduals[{i}] = {printer.doprint(residuals[i])}\n"
+
+    code += "\n\ndef compute_jacobian(jacobian, f, o):\n"
+    code += f"\tf = f.view()\n\tf.shape = ({s}, {N})\n"
+    code += "".join(f"\ta{i}{j} = {a[i,j]}\n" for i in range(s) for j in range(s))
+    # code += "".join(f"\t{symbol} = {printer.doprint(value)}\n" for symbol, value in params.items())
+    for i in range(s * N):
+        for j in range(s * N):
+            code += f"\tjacobian[{i},{j}] = {printer.doprint(eval_expr(jacobian[i][j], params=params).evalf())}\n"
+            # code += f"\tjacobian[{i},{j}] = {printer.doprint(jacobian[i][j])}\n"
+
+    return code

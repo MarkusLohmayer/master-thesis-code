@@ -1,6 +1,6 @@
 """Newton-Raphson scheme"""
 
-import numpy as np
+import numpy
 
 
 class DidNotConvergeError(Exception):
@@ -13,8 +13,8 @@ def newton_raphson(
     compute_residuals,
     jacobian,
     compute_jacobian,
-    tol=1e-12,
-    iterations=100000,
+    tol=1e-10,
+    iterations=500,
 ):
     """Solves a (nonlinear) system of N equations `residuals(unknowns) = 0`.
 
@@ -53,11 +53,11 @@ def newton_raphson(
     for n in range(iterations + 1):
         compute_residuals(residuals, unknowns)
 
-        if np.linalg.norm(residuals) <= tol:
+        if numpy.linalg.norm(residuals) <= tol:
             return
 
         compute_jacobian(jacobian, unknowns)
 
-        unknowns -= np.linalg.solve(jacobian, residuals)
+        unknowns -= numpy.linalg.solve(jacobian, residuals)
 
     raise DidNotConvergeError
