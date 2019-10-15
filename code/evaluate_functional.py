@@ -4,7 +4,7 @@ import sympy
 import numpy
 import math
 
-from gauss_legendre import eval_expr
+from symbolic import eval_expr
 
 
 def _generate_code(x, functional):

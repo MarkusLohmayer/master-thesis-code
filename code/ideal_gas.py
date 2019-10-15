@@ -1,4 +1,7 @@
+"""ideal gas model based on the Sackur-Tetrode equation"""
+
 from math import log, exp, pi
+
 
 
 # Boltzmann's constant
