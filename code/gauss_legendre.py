@@ -56,7 +56,7 @@ def butcher(s):
     return a, b, c
 
 
-def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}):
+def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9):
     """Integrate a port-Hamiltonian system in time
     based on a Gauss-Legendre collocation method.
 
@@ -133,7 +133,7 @@ def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}):
                 lambda residuals, unknowns: compute_residuals(residuals, unknowns, x_0),
                 jacobian,
                 lambda jacobian, unknowns: compute_jacobian(jacobian, unknowns, x_0),
-                tol=1e-9,
+                tol=tol,
                 iterations=500,
             )
         except DidNotConvergeError:

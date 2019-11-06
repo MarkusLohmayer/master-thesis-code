@@ -3,7 +3,6 @@
 from math import log, exp, pi
 
 
-
 # Boltzmann's constant
 k_B = 1.380649e-23 # J / K
 
@@ -17,86 +16,84 @@ N_A = 6.02214076 * 10**23 # 1 / mol
 M = 39.88 / 1000 # kg / mol
 
 # mass of one atom in kg
-m = M / N_A
+m_a = M / N_A
 
 
-C1 = 2.5 + 1.5 * log((4.0 * pi * m) / (3.0 * h**2))
-
+C1 = 2.5 + 1.5 * log((4.0 * pi * m_a) / (3.0 * h**2))
 
 
 """entropy as a thermodynamic potential"""
 
-def S(U, V, N):
+def S(u, v, n):
     """Sackur-Tetrode equation"""
-    return N * k_B * (log((V / N) * (U / N)**(3/2)) + C1)
+    return n * k_B * (log((v / n) * (u / n)**(3/2)) + C1)
 
-def S_1_T(U, V, N):
+def S_1_θ(u, v, n):
     """inverse temperature"""
-    return (3 * k_B * N) / (2 * U)
+    return (3 * k_B * n) / (2 * u)
 
-def S_T(U, V, N):
+def S_θ(u, v, n):
     """temperature"""
-    return (2 * U) / (3 * k_B * N)
+    return (2 * u) / (3 * k_B * n)
 
-def S_p_T(U, V, N):
+def S_π_θ(u, v, n):
     """pressure / temperature"""
-    return N * k_B / V
+    return n * k_B / v
 
-def S_p(U, V, N):
+def S_π(u, v, n):
     """pressure"""
-    return (2 * U) / (3 * V)
+    return (2 * u) / (3 * v)
 
-def S_mu_T(U, V, N):
+def S_μ_θ(u, v, n):
     """chemical potential / temperature"""
-    return -k_B*(C1 + log(V*(U/N)**1.5/N)) - 2.5*k_B
+    return -k_B*(C1 + log(v*(u/n)**1.5/n)) - 2.5*k_B
 
-def S_mu(U, V, N):
+def S_μ(u, v, n):
     """chemical potential"""
-    return -2/3*U*(k_B*(C1 + log(V*(U/N)**1.5/N)) - 2.5*k_B)/(N*k_B)
+    return -2/3*u*(k_B*(C1 + log(v*(u/n)**1.5/n)) - 2.5*k_B)/(n*k_B)
 
 
 
 """internal energy as a thermodynamic potential"""
 
-def U(S, V, N):
+def U(s, v, n):
     """Sackur-Tetrode equation solved for U"""
-    return N * ((N / V) * exp(S / (k_B * N) - C1))**(2/3)
+    return n * ((n / v) * exp(s / (k_B * n) - C1))**(2/3)
 
-def U2(T, N):
-    """internial energy as a function of T, V, N"""
-    return 1.5 * k_B * N * T
+def U2(θ, n):
+    """internal energy as a function of θ, n"""
+    return 1.5 * k_B * n * θ
 
-C2 = h**2 / (2 * pi * exp(5/3) * m)
+C2 = h**2 / (2 * pi * exp(5/3) * m_a)
 C3 = C2 / k_B
 
-def U_T(S, V, N):
+def U_θ(s, v, n):
     """temperature"""
-    return C3 * (N * exp(S / (N * k_B)) / V)**(2/3)
+    return C3 * (n * exp(s / (n * k_B)) / v)**(2/3)
 
-def U_p(S, V, N):
+def U_π(s, v, n):
     """pressure"""
-    return C2 * (N / V) * (N * exp(S / (N * k_B)) / V)**(2/3)
+    return C2 * (n / v) * (n * exp(s / (n * k_B)) / v)**(2/3)
 
-def U_mu(S, V, N):
+def U_μ(s, v, n):
     """chemical potential"""
-    return (1/3)*(5.0*N*k_B - 2.0*S)*exp((2/3)*(-C1*N*k_B + S)/(N*k_B))/(N**(1/3)*V**(2/3)*k_B)
+    return (1/3)*(5.0*n*k_B - 2.0*s)*exp((2/3)*(-C1*n*k_B + s)/(n*k_B))/(n**(1/3)*v**(2/3)*k_B)
 
 
 """Helmholtz free energy as a thermodynamic potential"""
 
-def F(T, V, N):
+def F(θ, v, n):
     """Hemholtz free energy"""
-    return 0.5*N*T*k_B*(-2*C1 + log((8/27)*N**2/(T**3*V**2*k_B**3)) + 3)
+    return 0.5*n*θ*k_B*(-2*C1 + log((8/27)*n**2/(θ**3*v**2*k_B**3)) + 3)
 
-def F_S(T, V, N):
+def F_s(θ, v, n):
     """entropy"""
-    return -0.5*N*k_B*(-2.0*C1 + log((8/27)*N**2/(T**3*V**2*k_B**3)))
+    return -0.5*n*k_B*(-2.0*C1 + log((8/27)*n**2/(θ**3*v**2*k_B**3)))
 
-def F_p(T, V, N):
+def F_π(θ, v, n):
     """pressure"""
-    return k_B * N * T / V
+    return k_B * n * θ / v
 
-def F_mu(T, V, N):
+def F_μ(θ, v, n):
     """chemical potential"""
-    return 0.5*T*k_B*(-2.0*C1 + log((8/27)*N**2/(T**3*V**2*k_B**3)) + 5)
-
+    return 0.5*θ*k_B*(-2.0*C1 + log((8/27)*n**2/(θ**3*v**2*k_B**3)) + 5)

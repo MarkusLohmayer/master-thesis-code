@@ -1,13 +1,13 @@
 """ideal gas model for lumped volumes
 based on the Sackur-Tetrode equation
 
-fundamental equation: U = U(S, V, M)
+fundamental equation: u = U(s, v, m)
 """
 
 import sympy
 
 
-# state-independent constants
+# natural constants
 h = sympy.Symbol("h", real=True, positive=True)
 k_B = sympy.Symbol("k_B", real=True, positive=True)
 N_A = sympy.Symbol("N_A", real=True, positive=True)
@@ -29,62 +29,62 @@ params = {
     m_Ar: 39.95 / (1000 * N_A),
 }
 
-# general atomic weight
-_m = sympy.Symbol("m_atom", real=True, positive=True)
+# atomic weight
+_m_a = sympy.Symbol("m_a", real=True, positive=True)
 
 # state variables
-_S = sympy.Symbol("S", real=True, positive=True)
-_V = sympy.Symbol("V", real=True, positive=True)
-_M = sympy.Symbol("M", real=True, positive=True)
+_s = sympy.Symbol("s", real=True, positive=True)
+_v = sympy.Symbol("v", real=True, positive=True)
+_m = sympy.Symbol("m", real=True, positive=True)
 
 # fundamental equation
 _U = sympy.Symbol("U", real=True, positive=True)
 
 # equations of state
-_T = sympy.Symbol("T", real=True, positive=True)
-_p = sympy.Symbol("p", real=True, positive=True)
-_mu = sympy.Symbol("mu", real=True, positive=True)
+_θ = sympy.Symbol("θ", real=True, positive=True)
+_π = sympy.Symbol("π", real=True, positive=True)
+_μ = sympy.Symbol("μ", real=True, positive=True)
 
 _functionals = {
-    # internal energy U(S, V, M)
+    # internal energy U(s, v, m)
     _U: 3
     / (4 * sympy.pi)
     * sympy.exp(-sympy.Rational(5, 3))
     * h ** 2
-    * _m ** -sympy.Rational(8, 3)
-    * _M ** sympy.Rational(5, 3)
-    / _V ** sympy.Rational(2, 3)
-    * sympy.exp(sympy.Rational(2, 3) * _m / k_B * _S / _M),
-    # temperature T(S, V, M)
-    _T: sympy.exp(-sympy.Rational(5, 3))
+    * _m_a ** -sympy.Rational(8, 3)
+    * _m ** sympy.Rational(5, 3)
+    / _v ** sympy.Rational(2, 3)
+    * sympy.exp(sympy.Rational(2, 3) * _m_a / k_B * _s / _m),
+    # temperature θ(s, v, m)
+    _θ: sympy.exp(-sympy.Rational(5, 3))
     / (2 * sympy.pi)
     * h ** 2 / k_B
-    * _m ** -sympy.Rational(5, 3)
-    * (_M / _V) ** sympy.Rational(2, 3)
-    * sympy.exp(sympy.Rational(2, 3) * _m / k_B * _S / _M),
-    # pressure p(S, V, M)
-    _p: sympy.exp(-sympy.Rational(5, 3))
+    * _m_a ** -sympy.Rational(5, 3)
+    * (_m / _v) ** sympy.Rational(2, 3)
+    * sympy.exp(sympy.Rational(2, 3) * _m_a / k_B * _s / _m),
+    # pressure π(s, v, m)
+    _π: sympy.exp(-sympy.Rational(5, 3))
     / (2 * sympy.pi)
     * h ** 2
-    * _m ** -sympy.Rational(8, 3)
-    * (_M / _V) ** sympy.Rational(5, 3)
-    * sympy.exp(sympy.Rational(2, 3) * _m / k_B * _S / _M),
-    # chemical potential mu(S, V, M)
-    _mu: sympy.exp(-sympy.Rational(5, 3))
+    * _m_a ** -sympy.Rational(8, 3)
+    * (_m / _v) ** sympy.Rational(5, 3)
+    * sympy.exp(sympy.Rational(2, 3) * _m_a / k_B * _s / _m),
+    # chemical potential μ(s, v, m)
+    _μ: sympy.exp(-sympy.Rational(5, 3))
     / (4 * sympy.pi)
     * h ** 2 / k_B
-    * _m ** -sympy.Rational(8, 3)
-    * (5 * k_B * _M - 2 * _m * _S)
-    * (_M * _V**2) ** -sympy.Rational(1, 3)
-    * sympy.exp(sympy.Rational(2, 3) * _m / k_B * _S / _M),
+    * _m_a ** -sympy.Rational(8, 3)
+    * (5 * k_B * _m - 2 * _m_a * _s)
+    * (_m * _v**2) ** -sympy.Rational(1, 3)
+    * sympy.exp(sympy.Rational(2, 3) * _m_a / k_B * _s / _m),
 }
 
 
-def add_functionals(functionals, U, S, V, M, m, T=None, p=None, mu=None):
+def add_functionals(functionals, U, s, v, m, m_a, θ=None, π=None, μ=None):
     """add functionals for ideal gas in a lumped volume
     to a dictionary of functionals.
-    The functional U(S, V, M) will always be added.
-    The functionals T(S, V, M), p(S, V, M) and mu(S, V, M)
+    The functional U(s, v, m) will always be added.
+    The functionals θ(s, v, m), π(s, v, m) and μ(s, v, m)
     will only be added if a symbol is provided.
 
     Parameters
@@ -93,34 +93,34 @@ def add_functionals(functionals, U, S, V, M, m, T=None, p=None, mu=None):
         A dictionary to which the functionals are added.
     U : sympy.Symbol
         Symbol for internal energy of the gas (J).
-    S : sympy.Symbol
+    s : sympy.Symbol
         Symbol for ntropy of the gas (J/K).
-    V : sympy.Symbol
+    v : sympy.Symbol
         Symbol for volume of the gas (m**3).
-    M : sympy.Symbol
-        Symbol for mass of the gas (kg).
     m : sympy.Symbol
+        Symbol for mass of the gas (kg).
+    m_a : sympy.Symbol
         Symbol for atomic mass (kg).
-    T : sympy.Symbol or None
+    θ : sympy.Symbol or None
         Symbol for temerature (K).
-    p : sympy.Symbol or None
+    π : sympy.Symbol or None
         Symbol for pressure (Pa).
-    mu : sympy.Symbol or None
+    μ : sympy.Symbol or None
         Symbol for chemical potential per unit mass (J/kg).
     """
 
     subs = {
-        _S: S,
-        _V: V,
-        _M: M,
+        _s: s,
+        _v: v,
         _m: m,
+        _m_a: m_a,
     }
 
     functionals[U] = _functionals[_U].subs(subs)
 
-    if T:
-        functionals[T] = _functionals[_T].subs(subs)
-    if p:
-        functionals[p] = _functionals[_p].subs(subs)
-    if mu:
-        functionals[mu] = _functionals[_mu].subs(subs)
+    if θ:
+        functionals[θ] = _functionals[_θ].subs(subs)
+    if θ:
+        functionals[π] = _functionals[_π].subs(subs)
+    if μ:
+        functionals[μ] = _functionals[_μ].subs(subs)
