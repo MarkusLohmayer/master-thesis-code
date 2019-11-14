@@ -15,6 +15,7 @@ def newton_raphson(
     compute_jacobian,
     tol=1e-10,
     iterations=500,
+    logger=None
 ):
     """Solves a (nonlinear) system of N equations `residuals(unknowns) = 0`.
 
@@ -42,6 +43,8 @@ def newton_raphson(
         Iteration converges if the 2-norm of residuals is <= tol.
     iterations : int, optional
         Maximum number of iterations.
+    logger : Optional[Logger]
+        Logger used to track steps to convergence.
 
     Raises
     ------
@@ -54,6 +57,8 @@ def newton_raphson(
         compute_residuals(residuals, unknowns)
 
         if numpy.linalg.norm(residuals) <= tol:
+            if logger:
+                logger.info(f"converged after {n} steps")
             return
 
         compute_jacobian(jacobian, unknowns)

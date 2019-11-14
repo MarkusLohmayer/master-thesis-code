@@ -56,7 +56,7 @@ def butcher(s):
     return a, b, c
 
 
-def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9):
+def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9, logger=None):
     """Integrate a port-Hamiltonian system in time
     based on a Gauss-Legendre collocation method.
 
@@ -79,6 +79,8 @@ def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9)
         Functionals on which F may depend.
     params : Dict[sympy.Symbol, Union[sympy.Expr, float]]
         Parameters on which the system may depend.
+    logger : Optional[Logger]
+        Logger object which is passed through to Newton-Raphsopn solver.
     """
 
     # number of steps
@@ -135,6 +137,7 @@ def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9)
                 lambda jacobian, unknowns: compute_jacobian(jacobian, unknowns, x_0),
                 tol=tol,
                 iterations=500,
+                logger=logger
             )
         except DidNotConvergeError:
             print(f"Did not converge at step {k}.")
