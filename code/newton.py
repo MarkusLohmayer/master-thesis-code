@@ -49,7 +49,7 @@ def newton_raphson(
     Raises
     ------
     DidNotConvergeError
-        If the Newton-Raphson iteration did not converge
+        if the Newton-Raphson iteration did not converge
         after the maximum number of allowed iterations.
     """
 
@@ -63,6 +63,6 @@ def newton_raphson(
 
         compute_jacobian(jacobian, unknowns)
 
-        unknowns -= numpy.linalg.solve(jacobian, residuals)
+        unknowns -= numpy.linalg.lstsq(jacobian, residuals, rcond=None)[0]
 
     raise DidNotConvergeError

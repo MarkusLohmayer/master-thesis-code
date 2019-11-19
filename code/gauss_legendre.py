@@ -56,7 +56,7 @@ def butcher(s):
     return a, b, c
 
 
-def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9, logger=None):
+def gauss_legendre(x, xdot, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9, logger=None, constraints=None):
     """Integrate a port-Hamiltonian system in time
     based on a Gauss-Legendre collocation method.
 
@@ -64,7 +64,7 @@ def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9,
     ----------
     x : sympy.Matrix
         vector of symbols for state-space coordinates
-    F : List[sympy.Expr]
+    xdot : List[sympy.Expr]
         The right-hand side of the ODE.
     x_0 : numpy.ndarray
         Initial conditions.
@@ -76,7 +76,7 @@ def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9,
         Number of stages of the collocation method.
         The resulting method is of order 2s.
     functionals : Dict[sympy.Symbol, sympy.Expr]
-        Functionals on which F may depend.
+        Functionals on which xdot may depend.
     params : Dict[sympy.Symbol, Union[sympy.Expr, float]]
         Parameters on which the system may depend.
     logger : Optional[Logger]
@@ -99,7 +99,7 @@ def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9,
     c *= dt
 
     # generate code for evaluating residuals vector and Jacobian matrix
-    code = _generate_code(x, F, N, a, s, functionals, params)
+    code = _generate_code(x, xdot, N, a, s, functionals, params, constraints)
     # print(code)
     # return None, None
     ldict = {}
@@ -117,15 +117,15 @@ def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9,
     solution[0] = x_0
 
     # flows / unknowns (reused at every step)
-    f = numpy.ones(s * N, dtype=float)
+    f = numpy.zeros(s * N, dtype=float)
     fmat = f.view()
     fmat.shape = (s, N)
 
     # residuals vector (reused at every step)
-    residuals = numpy.empty(s * N, dtype=float)
+    residuals = numpy.empty(s * (N + len(constraints)), dtype=float)
 
     # jacobian matrix (reused at every step)
-    jacobian = numpy.empty((s * N, s * N), dtype=float)
+    jacobian = numpy.empty((s * (N + len(constraints)), s * N), dtype=float)
 
     for k in range(1, K + 1):
         try:
@@ -148,11 +148,14 @@ def gauss_legendre(x, F, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9,
     return time, solution
 
 
-def _generate_code(x, F, N, a, s, functionals, params):
+def _generate_code(x, xdot, N, a, s, functionals, params, constraints):
     """Generate code for the two methods compute_residuals and compute_jacobian"""
 
     # dynamics
-    F = [eval_expr(f, functionals) for f in F]
+    xdot = [eval_expr(f, functionals) for f in xdot]
+
+    # algebraic constraints
+    constraints = [eval_expr(c, functionals) for c in constraints]
 
     # symbols for Butcher coefficients a_{ij} multiplied by time step h
     asym = [[sympy.Symbol(f"a{i}{j}") for j in range(s)] for i in range(s)]
@@ -173,18 +176,20 @@ def _generate_code(x, F, N, a, s, functionals, params):
     ]
 
     # expressions for the residuals vector
-    residuals = [fsym[i][n] + F[n].subs(xc[i]) for i in range(s) for n in range(N)]
+    residuals = [fsym[i][n] + xdot[n].subs(xc[i]) for i in range(s) for n in range(N)] +\
+    [c.subs(xc[i]) for c in constraints for i in range(s)]
 
     # expressions for the Jacobian matrix
-    jacobian = [[residuals[i].diff(d) for r in fsym for d in r] for i in range(s * N)]
+    jacobian = [[residual.diff(d) for r in fsym for d in r] for residual in residuals]
 
     printer = sympy.printing.lambdarepr.PythonCodePrinter()
+    dim = s*N + s*len(constraints)
 
     code = "def compute_residuals(residuals, f, o):\n"
     code += f"\tf = f.view()\n\tf.shape = ({s}, {N})\n"
     code += "".join(f"\ta{i}{j} = {a[i,j]}\n" for i in range(s) for j in range(s))
     # code += "".join(f"\t{symbol} = {printer.doprint(value)}\n" for symbol, value in params.items())
-    for i in range(s * N):
+    for i in range(dim):
         code += f"\tresiduals[{i}] = {printer.doprint(eval_expr(residuals[i], params=params).evalf())}\n"
         # code += f"\tresiduals[{i}] = {printer.doprint(residuals[i])}\n"
 
@@ -192,9 +197,8 @@ def _generate_code(x, F, N, a, s, functionals, params):
     code += f"\tf = f.view()\n\tf.shape = ({s}, {N})\n"
     code += "".join(f"\ta{i}{j} = {a[i,j]}\n" for i in range(s) for j in range(s))
     # code += "".join(f"\t{symbol} = {printer.doprint(value)}\n" for symbol, value in params.items())
-    for i in range(s * N):
+    for i in range(dim):
         for j in range(s * N):
             code += f"\tjacobian[{i},{j}] = {printer.doprint(eval_expr(jacobian[i][j], params=params).evalf())}\n"
             # code += f"\tjacobian[{i},{j}] = {printer.doprint(jacobian[i][j])}\n"
-
     return code
