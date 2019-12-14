@@ -56,7 +56,19 @@ def butcher(s):
     return a, b, c
 
 
-def gauss_legendre(x, xdot, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e-9, logger=None, constraints=None):
+def gauss_legendre(
+    x,
+    xdot,
+    x_0,
+    t_f,
+    dt,
+    s=1,
+    functionals={},
+    params={},
+    tol=1e-9,
+    logger=None,
+    constraints=[],
+):
     """Integrate a port-Hamiltonian system in time
     based on a Gauss-Legendre collocation method.
 
@@ -65,7 +77,8 @@ def gauss_legendre(x, xdot, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e
     x : sympy.Matrix
         vector of symbols for state-space coordinates
     xdot : List[sympy.Expr]
-        The right-hand side of the ODE.
+        The right hand sides of the differtial equations
+        which have to hold at each collocation point.
     x_0 : numpy.ndarray
         Initial conditions.
     t_f : float
@@ -81,6 +94,9 @@ def gauss_legendre(x, xdot, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e
         Parameters on which the system may depend.
     logger : Optional[Logger]
         Logger object which is passed through to Newton-Raphsopn solver.
+    constraints : List[sympy.Expr]
+        Additional algebraic equations which have to hold
+        at each collocation point.
     """
 
     # number of steps
@@ -137,7 +153,7 @@ def gauss_legendre(x, xdot, x_0, t_f, dt, s=1, functionals={}, params={}, tol=1e
                 lambda jacobian, unknowns: compute_jacobian(jacobian, unknowns, x_0),
                 tol=tol,
                 iterations=500,
-                logger=logger
+                logger=logger,
             )
         except DidNotConvergeError:
             print(f"Did not converge at step {k}.")
@@ -176,14 +192,15 @@ def _generate_code(x, xdot, N, a, s, functionals, params, constraints):
     ]
 
     # expressions for the residuals vector
-    residuals = [fsym[i][n] + xdot[n].subs(xc[i]) for i in range(s) for n in range(N)] +\
-    [c.subs(xc[i]) for c in constraints for i in range(s)]
+    residuals = [
+        fsym[i][n] + xdot[n].subs(xc[i]) for i in range(s) for n in range(N)
+    ] + [c.subs(xc[i]) for c in constraints for i in range(s)]
 
     # expressions for the Jacobian matrix
     jacobian = [[residual.diff(d) for r in fsym for d in r] for residual in residuals]
 
     printer = sympy.printing.lambdarepr.PythonCodePrinter()
-    dim = s*N + s*len(constraints)
+    dim = s * N + s * len(constraints)
 
     code = "def compute_residuals(residuals, f, o):\n"
     code += f"\tf = f.view()\n\tf.shape = ({s}, {N})\n"

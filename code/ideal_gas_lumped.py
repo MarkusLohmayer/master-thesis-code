@@ -94,7 +94,7 @@ def add_functionals(functionals, U, s, v, m, m_a, θ=None, π=None, μ=None):
     U : sympy.Symbol
         Symbol for internal energy of the gas (J).
     s : sympy.Symbol
-        Symbol for ntropy of the gas (J/K).
+        Symbol for entropy of the gas (J/K).
     v : sympy.Symbol
         Symbol for volume of the gas (m**3).
     m : sympy.Symbol
@@ -120,7 +120,7 @@ def add_functionals(functionals, U, s, v, m, m_a, θ=None, π=None, μ=None):
 
     if θ:
         functionals[θ] = _functionals[_θ].subs(subs)
-    if θ:
+    if π:
         functionals[π] = _functionals[_π].subs(subs)
     if μ:
         functionals[μ] = _functionals[_μ].subs(subs)

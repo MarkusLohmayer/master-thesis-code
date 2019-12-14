@@ -79,7 +79,7 @@ functionals = {
 
 
 def add_functionals(functionals, U, s, m, m_a, θ=None, π=None, μ=None):
-    """add functionals for ideal gas in a lumped volume
+    """add functionals for a distributed ideal gas
     to a dictionary of functionals.
     The functional U(s, m) will always be added.
     The functionals θ(s, m), π(s, m) and μ(s, m)
@@ -92,7 +92,7 @@ def add_functionals(functionals, U, s, m, m_a, θ=None, π=None, μ=None):
     U : sympy.Symbol
         Symbol for internal energy of the gas (J).
     s : sympy.Symbol
-        Symbol for ntropy of the gas (J/K).
+        Symbol for entropy of the gas (J/K).
     m : sympy.Symbol
         Symbol for mass of the gas (kg).
     m_a : sympy.Symbol
@@ -115,7 +115,7 @@ def add_functionals(functionals, U, s, m, m_a, θ=None, π=None, μ=None):
 
     if θ:
         functionals[θ] = _functionals[_θ].subs(subs)
-    if θ:
+    if π:
         functionals[π] = _functionals[_π].subs(subs)
     if μ:
         functionals[μ] = _functionals[_μ].subs(subs)
